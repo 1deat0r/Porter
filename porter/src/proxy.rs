@@ -39,6 +39,11 @@ pub fn router(default_agent: String) -> Router {
         .route("/v1/openrouter/chat", post(openrouter_chat))
         .route("/v1/deepseek/check", post(deepseek_check))
         .route("/v1/deepseek/chat", post(deepseek_chat))
+        .route("/v1/llm/check", post(llm_check))
+        .route("/v1/llm/chat", post(llm_chat))
+        .route("/v1/supabase/check", post(supabase_check))
+        .route("/v1/supabase/rest", get(supabase_rest))
+        .route("/v1/cloudflare/check", post(cloudflare_check))
         .with_state(st)
 }
 
@@ -277,5 +282,78 @@ async fn deepseek_chat(
     match crate::deepseek::chat(&agent, &body.model, &body.messages, body.max_tokens) {
         Ok(v) => Json(json!({"ok": true, "agent": agent, "completion": v})),
         Err(e) => Json(json!({"ok": false, "agent": agent, "error": e})),
+    }
+}
+
+#[derive(Deserialize)]
+struct LlmCheck {
+    provider: String,
+}
+
+#[derive(Deserialize)]
+struct LlmChat {
+    provider: String,
+    model: String,
+    messages: Value,
+    max_tokens: Option<u32>,
+}
+
+fn bad_provider(p: &str) -> bool {
+    !crate::llm::PROVIDERS.contains(&p)
+}
+
+async fn llm_check(State(st): State<Arc<AppState>>, headers: HeaderMap, Json(body): Json<LlmCheck>) -> (StatusCode, Json<Value>) {
+    let agent = agent_from(&headers, &st.default_agent);
+    let provider = body.provider.to_lowercase();
+    if bad_provider(&provider) {
+        return (StatusCode::BAD_REQUEST, Json(json!({"ok": false, "error": "unknown llm provider"})));
+    }
+    match crate::llm::check(&agent, &provider) {
+        Ok(v) => {
+            let n = v.get("data").and_then(|d| d.as_array()).map(|a| a.len());
+            (StatusCode::OK, Json(json!({"ok": true, "provider": provider, "models": n})))
+        }
+        Err(e) => (StatusCode::OK, Json(json!({"ok": false, "provider": provider, "error": e}))),
+    }
+}
+
+async fn llm_chat(State(st): State<Arc<AppState>>, headers: HeaderMap, Json(body): Json<LlmChat>) -> (StatusCode, Json<Value>) {
+    let agent = agent_from(&headers, &st.default_agent);
+    let provider = body.provider.to_lowercase();
+    if bad_provider(&provider) {
+        return (StatusCode::BAD_REQUEST, Json(json!({"ok": false, "error": "unknown llm provider"})));
+    }
+    match crate::llm::chat(&agent, &provider, &body.model, &body.messages, body.max_tokens) {
+        Ok(v) => (StatusCode::OK, Json(json!({"ok": true, "provider": provider, "completion": v}))),
+        Err(e) => (StatusCode::OK, Json(json!({"ok": false, "provider": provider, "error": e}))),
+    }
+}
+
+async fn supabase_check(State(st): State<Arc<AppState>>, headers: HeaderMap) -> Json<Value> {
+    let agent = agent_from(&headers, &st.default_agent);
+    match crate::supabase::check(&agent) {
+        Ok(_) => Json(json!({"ok": true})),
+        Err(e) => Json(json!({"ok": false, "error": e})),
+    }
+}
+
+#[derive(Deserialize)]
+struct RestQuery {
+    path: String,
+}
+
+async fn supabase_rest(State(st): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<RestQuery>) -> (StatusCode, Json<Value>) {
+    let agent = agent_from(&headers, &st.default_agent);
+    match crate::supabase::rest_get(&agent, &q.path) {
+        Ok(v) => (StatusCode::OK, Json(json!({"ok": true, "data": v}))),
+        Err(e) => (StatusCode::OK, Json(json!({"ok": false, "error": e}))),
+    }
+}
+
+async fn cloudflare_check(State(st): State<Arc<AppState>>, headers: HeaderMap) -> Json<Value> {
+    let agent = agent_from(&headers, &st.default_agent);
+    match crate::cloudflare::check(&agent) {
+        Ok(_) => Json(json!({"ok": true})),
+        Err(e) => Json(json!({"ok": false, "error": e})),
     }
 }
