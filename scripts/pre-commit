@@ -1,0 +1,25 @@
+#!/bin/bash
+# Blocks commits containing secrets. Installed as .git/hooks/pre-commit.
+# Allows env var NAMES (TYPESAFE_API_KEY) but blocks assigned values.
+HERE=$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")
+ROOT=""
+D="$HERE"
+for _ in 1 2 3 4 5; do
+  if [ -d "$D/.git" ]; then ROOT="$D"; break; fi
+  D=$(dirname "$D")
+done
+[ -z "$ROOT" ] && { echo "pre-commit BLOCKED: repo not found" >&2; exit 1; }
+cd "$ROOT" || exit 1
+PAT='(sk-ant-|sk-|ghp_|gho_|xox[bpas]-|ntn_|ts_)[A-Za-z0-9_.-]{8,}|(api_key|apikey|api-key|secret|passwd|password|bearer)\s*[:=]\s*["'\'']?[A-Za-z0-9_.\-~+/=]{16,}'
+DIFF=$(git diff --cached -- . ':(exclude)Cargo.lock' | grep -E "^\+[^+]" || true)
+if echo "$DIFF" | grep -Eq "$PAT"; then
+  echo "pre-commit BLOCKED: possible secret in staged changes:" >&2
+  echo "$DIFF" | grep -En "$PAT" | head -n 5 >&2
+  echo "Remove the value (use env vars / vault lookups) and retry." >&2
+  exit 1
+fi
+if git diff --cached --name-only | grep -Eq "vault\.json|backups/|\.env$"; then
+  echo "pre-commit BLOCKED: vault/secrets file staged." >&2
+  exit 1
+fi
+exit 0
