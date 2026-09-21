@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Porter
+Comment=Porter native settings (GPUI)
+Exec=/home/its1deat0r/.cargo/bin/porter-ui
+Icon=porter
+Terminal=false
+Type=Application
+Categories=Settings;Utility;
+StartupWMClass=porter-ui

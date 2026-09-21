@@ -1,0 +1,9 @@
+[Unit]
+Description=porter local API holder (Jev-gated)
+After=network-online.target
+[Service]
+ExecStart=%h/.cargo/bin/porter serve --port 8819
+Restart=on-failure
+NoNewPrivileges=true
+[Install]
+WantedBy=default.target

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Porter Settings
+Comment=Local API holder: connectors, keys, endpoints
+Exec=xdg-open http://127.0.0.1:8819/settings
+Icon=preferences-system
+Terminal=false
+Type=Application
+Categories=Settings;Utility;
