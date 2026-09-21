@@ -1,7 +1,7 @@
 use axum::{
     extract::{Query, State},
     http::{header, HeaderMap, StatusCode},
-    response::{Html, IntoResponse},
+    response::{Html, IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
@@ -44,6 +44,8 @@ pub fn router(default_agent: String) -> Router {
         .route("/v1/supabase/check", post(supabase_check))
         .route("/v1/supabase/rest", get(supabase_rest))
         .route("/v1/cloudflare/check", post(cloudflare_check))
+        .route("/v1/models", get(gateway_models))
+        .route("/v1/chat/completions", post(gateway_chat))
         .with_state(st)
 }
 
@@ -356,4 +358,16 @@ async fn cloudflare_check(State(st): State<Arc<AppState>>, headers: HeaderMap) -
         Ok(_) => Json(json!({"ok": true})),
         Err(e) => Json(json!({"ok": false, "error": e})),
     }
+}
+
+async fn gateway_models(headers: HeaderMap) -> Result<Json<Value>, Failure> {
+    let agent = crate::gateway::authenticate(&headers)?;
+    Ok(Json(crate::gateway::models(&agent)))
+}
+
+type Failure = (StatusCode, Json<Value>);
+
+async fn gateway_chat(headers: HeaderMap, Json(body): Json<Value>) -> Result<Response, Failure> {
+    let agent = crate::gateway::authenticate(&headers)?;
+    crate::gateway::chat(&agent, &body).await
 }
